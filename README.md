@@ -272,6 +272,13 @@ This is an example which represents a YAML Ansible recipe artifact:
 ```
 
 ### Relationship types
+In TOSCA, Relationship types define the nature of the relationship between two nodes in a topology. A Relationship type specifies the interface and operations that a target node can provide to its source node. Relationship types can be used to model dependencies between nodes, such as a web server that depends on a database.
+
+Relationship types can be either built-in or custom-defined. Built-in Relationship types are predefined and provided by the TOSCA specification, while custom-defined Relationship types can be created by the user to represent specific relationships between nodes.
+
+The TOSCA Relationship type hierarchy includes two base types: the tosca.relationships.Root type, which serves as the parent for all Relationship types, and the tosca.relationships.DependsOn type, which is used to represent a simple dependency between nodes.
+
+Custom-defined Relationship types can derive from any built-in Relationship type or another custom-defined Relationship type, and can define their own properties and interfaces. Relationship types can also specify requirements and capabilities that the source and target nodes must have in order to establish the relationship.
 
 This is an example of a custom relationship type definition: 
 ```yaml
@@ -314,7 +321,98 @@ In this example, we define a custom relationship type called `mycompany.relation
 We also define a custom interface for the relationship type, called `mycompany.interfaces.depends_on`, which includes two operations: `add_dependency` and `remove_dependency`. Each operation includes a set of inputs, such as the `dependency_type` and timeout inputs for the add_dependency operation.
 
 ### Node types
-We have already seen an example of node type definition. We now dive deeper into this TOSCA type because 
+In TOSCA, a node type defines a specific kind of software or hardware component that can be deployed as part of an application topology. A node type can include information about the properties, attributes, and capabilities of the node, as well as any requirements it may have for deployment. For example, a node type could represent a web server, a database, or a load balancer.
+
+Node types can be defined in a TOSCA template using YAML syntax. They are typically derived from a parent node type, which can be a built-in TOSCA node type or a custom node type defined in the template. The properties of a node type can include metadata, constraints, and default values, and can be used to specify any relevant configuration data for the node.
+
+In addition to properties, node types can include capability types, which define the specific capabilities that the node provides, and requirement types, which define the specific requirements that the node has for deployment. For example, a web server node type might include a capability type for serving web pages and a requirement type for a load balancer to distribute incoming requests.
+
+Overall, node types are a key component of TOSCA because they enable the definition and deployment of complex application topologies that consist of many different software and hardware components. By defining node types in a TOSCA template, developers can ensure that each component is deployed correctly and configured to work seamlessly with other components in the topology.
+
+This is an example of customized node type. In particular, this is the implementation of the indigo Compute node. This definition and other Indigo basic types can be found [here](https://baltig.infn.it/infn-cloud/tosca-types/-/blob/master/tosca_types/base/basic_types.yaml). 
+
+```yaml
+   tosca.nodes.indigo.Compute:
+    derived_from: tosca.nodes.Compute
+    metadata:
+      icon: /images/compute.png
+    attributes:
+      private_address:
+        type: list
+        entry_schema:
+          type: string
+      public_address:
+        type: list
+        entry_schema:
+          type: string
+      ctxt_log:
+        type: string
+    properties:
+      os_users:
+        type: list
+        description: Users creation
+        entry_schema:
+          type: tosca.datatypes.indigo.User
+        default: []
+        required: false
+      tags:
+        type: map
+        description: Map of tags to associate to the Compute instance
+        entry_schema:
+          type: string
+        default: {}
+        required: false  
+      fail2ban_enabled: 
+        type: boolean
+        default: true
+      fail2ban_bantime: 
+        type: integer
+        default: 200
+      fail2ban_maxretry: 
+        type: integer
+        default: 10
+      fail2ban_jail_config:
+        type: string
+        default: |
+          - option: 'enabled'
+            value: 'true'
+            section: 'sshd'
+          - option: 'action'
+            value: '%(action_)s'
+            section: DEFAULT
+    capabilities:
+      scalable:
+        type: tosca.capabilities.indigo.Scalable
+      os:
+         type: tosca.capabilities.indigo.OperatingSystem
+      endpoint:
+        type: tosca.capabilities.indigo.Endpoint
+      host:
+        type: tosca.capabilities.indigo.Container
+        valid_source_types: [tosca.nodes.SoftwareComponent]
+    artifacts:
+      os_users_role:
+        file: indigo-dc.os_users
+        type: tosca.artifacts.AnsibleGalaxy.role
+      security_role:
+        file: maricaantonacci.security
+        type: tosca.artifacts.AnsibleGalaxy.role
+    interfaces:
+      Standard:
+        configure:
+          implementation: https://raw.githubusercontent.com/indigo-paas/tosca-types/main/artifacts/os/configure_system.yml
+          inputs:
+            os_users: { get_property: [ SELF, os_users] }
+            security_fail2ban_enabled: { get_property: [ SELF, fail2ban_enabled ] }
+            security_fail2ban_bantime: { get_property: [ SELF, fail2ban_bantime ] }
+            security_fail2ban_maxretry: { get_property: [ SELF, fail2ban_maxretry ] }
+            fail2ban_jail_configuration: { get_property: [ SELF, fail2ban_jail_config ] }
+```
+In the example above, we have a custom TOSCA Node Type called "tosca.nodes.indigo.Compute". This Node Type is derived from the TOSCA Compute Node Type and adds additional properties, attributes, capabilities, and interfaces that are specific to the Indigo project.
+
+For example, the "os_users" property is a list of users that will be created on the Compute instance, and the "tags" property is a map of tags that will be associated with the instance. The Node Type also includes a "scalable" capability that allows the instance to be scaled up or down, an "os" capability that specifies the operating system of the instance, an "endpoint" capability that provides information about the network endpoints exposed by the instance, and a "host" capability that specifies that the instance can host other nodes.
+
+The Node Type also includes two artifacts, "os_users_role" and "security_role", that are Ansible Galaxy roles used to configure the instance, and a Standard interface with a "configure" operation that uses an Ansible playbook to configure the instance with the specified properties and attributes. Overall, the TOSCA Node Type provides a flexible and reusable way to define the Compute nodes in the Indigo project.
 
 ### Example 
 
