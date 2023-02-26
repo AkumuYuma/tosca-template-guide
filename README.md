@@ -1,6 +1,19 @@
-# An easy guide to design and implement a TOSCA template. 
+#- [A practical guide about TOSCA](#a-practical-guide-about-TOSCA)
+- [Something about the TOSCA standard.](#something-about-the-tosca-standard)
+- [The general structure of a template.](#the-general-structure-of-a-template)
+  - [Type definitions](#type-definitions)
+  - [Topology template](#topology-template)
+  - [Example of a simple TOSCA template](#example-of-a-simple-tosca-template)
+- [TOSCA Types](#tosca-types)
+  - [Data types](#data-types)
+  - [Capability types](#capability-types)
+  - [Interface types](#interface-types)
+  - [Artifact types](#artifact-types)
+  - [Relationship types](#relationship-types)
+  - [Node types](#node-types)
+- [Example](#example)
 
-Breve introduzione su cosa faremo
+This is a guide about the TOSCA standard. We will explain its core features and its structure with a particular focus on type definitions. In the last section we will make an example of how to create a complete and modular template.  
 
 ## Something about the TOSCA standard. 
 The TOSCA (Topology and Orchestration Specification for Cloud Applications) standard is a language-agnostic and platform-independent specification for describing cloud applications and their components, including their topology, relationships, and orchestration. It was developed by the OASIS (Organization for the Advancement of Structured Information Standards) consortium to address the challenges of deploying and managing complex, multi-tier cloud applications.
@@ -414,5 +427,129 @@ For example, the "os_users" property is a list of users that will be created on 
 
 The Node Type also includes two artifacts, "os_users_role" and "security_role", that are Ansible Galaxy roles used to configure the instance, and a Standard interface with a "configure" operation that uses an Ansible playbook to configure the instance with the specified properties and attributes. Overall, the TOSCA Node Type provides a flexible and reusable way to define the Compute nodes in the Indigo project.
 
-### Example 
+## Example 
+Now we can put all the things together and write a complete TOSCA template. 
+
+In this example we will deploy a web server and a database, with user input to choose the operating system:
+
+```yaml 
+tosca_definitions_version: tosca_simple_yaml_1_3
+
+description: Example TOSCA template for deploying a web server and a database
+
+metadata:
+  template_name: web-server-database-template
+
+inputs:
+  vm_flavors:
+    type: list
+    description: List of available virtual machine flavors
+    entry_schema:
+      type: string
+
+node_types:
+  my.company.nodes.WebServer:
+    derived_from: tosca.nodes.WebServer
+    properties:
+      web_content:
+        type: string
+        required: true
+    requirements:
+      - host:
+          capability: my.company.capabilities.Compute
+          node: my.company.nodes.Compute
+
+  my.company.nodes.Database:
+    derived_from: tosca.nodes.Database
+    properties:
+      db_name:
+        type: string
+        required: true
+      db_user:
+        type: string
+        required: true
+      db_password:
+        type: string
+        required: true
+    requirements:
+      - host:
+          capability: my.company.capabilities.Compute
+          node: my.company.nodes.Compute
+
+  my.company.nodes.Compute:
+    derived_from: tosca.nodes.Compute
+    properties:
+      flavor:
+        type: string
+        required: true
+        default: { get_input: vm_flavors }
+
+  my.company.capabilities.Compute:
+    derived_from: tosca.capabilities.Compute
+
+topology_template:
+  inputs:
+    web_content:
+      type: string
+      description: Content to be served by the web server
+      default: "Hello, World!"
+
+  node_templates:
+    web_server:
+      type: my.company.nodes.WebServer
+      properties:
+        web_content: { get_input: web_content }
+      requirements:
+        - host: { node: compute }
+
+    database:
+      type: my.company.nodes.Database
+      properties:
+        db_name: my_db
+        db_user: my_user
+        db_password: my_password
+      requirements:
+        - host: { node: compute }
+
+    compute:
+      type: my.company.nodes.Compute
+      properties:
+        flavor: { get_input: vm_flavors }
+```
+
+In this template, we have defined three custom node types (`my.company.nodes.WebServer`, `my.company.nodes.Database`, and `my.company.nodes.Compute`) that are derived from the TOSCA built-in node types. We have also defined a custom capability type `my.company.capabilities.Compute` that is derived from the `tosca.capabilities.Compute` built-in capability type.
+
+The inputs section defines an input called `vm_flavors`, which is a list of available virtual machine flavors. This input can be set by the user when deploying the template.
+
+In the `node_templates` section, we have defined three node templates: `web_server`, `database`, and `compute`. The `web_server` node is of type `my.company.nodes.WebServer`. The `database` node is of type `my.company.nodes.Database`. They both require a host that provides the `my.company.capabilities.Compute` capability. The compute node is of type `my.company.nodes.Compute` and provides the `my.company.capabilities.Compute` capability. In this way it is possible to host on the `compute` node, both the web server and the database. 
+
+The `web_server` node is defined as an instance of the `tosca.nodes.WebServer` node type, which is derived from the `tosca.nodes.SoftwareComponent` node type. The node has a single capability of type `tosca.capabilities.Endpoint`, which defines a single port (port 80) for accessing the web server. The node also has an input property called `os_flavor` which allows the user to select the operating system flavor to use for the virtual machine.
+
+The database node is defined as an instance of the `tosca.nodes.Database` node type, which is also derived from the `tosca.nodes.SoftwareComponent` node type. The node has a single capability of type `tosca.capabilities.Database`, which defines the database endpoint and credentials. The node also has an input property called `db_flavor` which allows the user to select the database flavor to use.
+
+The relationship between the web server and the database nodes is defined as an instance of the `tosca.relationships.ConnectsTo` relationship type. This relationship specifies that the web server node requires the database node to be started before it can be started.
+
+Finally, the topology template specifies a single node template that instantiates both the web server and the database nodes, and defines the inputs for the `os_flavor` and `db_flavor` properties.
+
+To make reusable the defined types and to keep the template cleaner and more readable, it is possible to move their definitions in a different file and then import it with the import section of the template. 
+When it comes to design a complex TOSCA infrastructure with many different tosca types as service to be deployed and reused, it is usually a good idea to create two repositories, one for type definitions, and another one for topological templates. 
+
+The TOSCA-type repository has a directory structure like this: 
+
+```
+.
+├── artifacts
+└── tosca_types
+    ├── base
+    │    └── basic_types.yaml 
+    └── applications
+         ├── application_1.yaml 
+         ├── application_2.yaml 
+         └── application_3.yaml 
+```
+The `artifacts` folder contains the artifacts (such as ansible roles, configurations scrips and so on) needeed from the templates. The `tosca_types` folder is branched in a `base` folder and a `applications` folder. 
+In the `base` folder there is a `basic_types.yaml` template which contains the definition of types shared among the various applications. In the `application` folder, instead, there are the definitions of specific TOSCA types which are reused in different templates but not shared among the applications. 
+
+The TOSCA-template repository, instead, contains topological templates, which uses both the basic types and the application types. They are clean and focused on the gathering of the user inputs and management of the topology of the infrastructure. 
+
 
